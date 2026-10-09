@@ -30,6 +30,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 _INSTANCE_HANDLE = None
 _INSTANCE_FILE = None
+_INSTANCE_EVENT = None
 
 def claim_single_instance():
     """Prevent a second GUI from writing to the same vault concurrently."""
@@ -43,9 +44,33 @@ def claim_single_instance():
             raise OSError("Невозможно создать блокировку экземпляра")
         if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
             kernel32.CloseHandle(handle)
-            raise RuntimeError("ManPass уже запущен. Проверь системный трей Windows.")
+            # Signal the already-running application instead of launching
+            # a second GUI against the same SQLite database.
+            kernel32.OpenEventW.argtypes = [ctypes.c_uint, ctypes.c_bool, ctypes.c_wchar_p]
+            kernel32.OpenEventW.restype = ctypes.c_void_p
+            kernel32.SetEvent.argtypes = [ctypes.c_void_p]
+            kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+            event_name = "Local\\ManPass-Show-Window"
+            for _ in range(20):
+                existing = kernel32.OpenEventW(0x0002, False, event_name)  # EVENT_MODIFY_STATE
+                if existing:
+                    kernel32.SetEvent(existing)
+                    kernel32.CloseHandle(existing)
+                    return False
+                time.sleep(0.1)
+            raise RuntimeError("ManPass уже запущен, но его окно не ответило.")
         _INSTANCE_HANDLE = handle
+        kernel32.CreateEventW.argtypes = [ctypes.c_void_p, ctypes.c_bool, ctypes.c_bool, ctypes.c_wchar_p]
+        kernel32.CreateEventW.restype = ctypes.c_void_p
+        event = kernel32.CreateEventW(None, True, False, "Local\\ManPass-Show-Window")
+        if not event:
+            kernel32.CloseHandle(handle)
+            raise OSError("Не удалось настроить восстановление окна")
+        global _INSTANCE_EVENT
+        _INSTANCE_EVENT = event
+        atexit.register(lambda: kernel32.CloseHandle(event))
         atexit.register(lambda: kernel32.CloseHandle(handle))
+        return True
     else:
         import fcntl
         path = Path.home() / ".manpass_instance.lock"
@@ -57,6 +82,7 @@ def claim_single_instance():
             raise RuntimeError("ManPass уже запущен")
         _INSTANCE_FILE = f
         atexit.register(f.close)
+        return True
 
 
 def windows_idle_seconds():
@@ -82,7 +108,7 @@ def windows_idle_seconds():
 # =====================================================
 
 APP_NAME = "ManPass"
-APP_VERSION = "3.5.1"
+APP_VERSION = "3.5.2"
 
 APP_DIR = Path.home() / "PasswordVault"
 APP_DIR.mkdir(parents=True, exist_ok=True)
@@ -1008,6 +1034,20 @@ async def main(page: ft.Page):
         if not state["exiting"]:
             ui_loop.call_soon_threadsafe(tray_queue.put_nowait, command)
 
+    async def restore_from_shortcut():
+        """Handle Windows signal from a second shortcut launch on the Flet UI loop."""
+        if sys.platform != "win32" or _INSTANCE_EVENT is None:
+            return
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint]
+        kernel32.WaitForSingleObject.restype = ctypes.c_uint
+        kernel32.ResetEvent.argtypes = [ctypes.c_void_p]
+        while not state["exiting"]:
+            if kernel32.WaitForSingleObject(_INSTANCE_EVENT, 0) == 0:
+                kernel32.ResetEvent(_INSTANCE_EVENT)
+                send_tray_command("show")
+            await asyncio.sleep(0.2)
+
     def start_tray():
         nonlocal tray_icon
         if sys.platform != "win32" or pystray is None:
@@ -1733,6 +1773,7 @@ async def main(page: ft.Page):
         generation = state["generation"]
         site_name = str(item.get("site", "Без названия"))
         site_url = str(item.get("url", ""))
+        site_login = str(item.get("login", ""))
         password_field = field("Пароль", str(item.get("password", "")), password=True)
         password_field.read_only = True
 
@@ -1741,11 +1782,30 @@ async def main(page: ft.Page):
             if state["generation"] == generation:
                 close_dialog()
 
+        def copy_button(value, label):
+            return ft.IconButton(
+                ft.Icons.CONTENT_COPY,
+                tooltip=f"Скопировать {label.lower()}",
+                disabled=not bool(value),
+                action=ft.CopyToClipboard(value),
+            )
+
         content = ft.Column(
             controls=[
                 txt("СЕРВИС", 12, ACCENT, True),
-                txt(site_name, 16, WHITE, True),
-                ft.Container(height=4),
+                ft.Row(
+                    controls=[
+                        ft.Container(content=txt(site_name, 15, WHITE, True), expand=True),
+                        copy_button(site_name, "название сервиса"),
+                    ], spacing=8,
+                ),
+                txt("ЛОГИН", 12, ACCENT, True),
+                ft.Row(
+                    controls=[
+                        ft.Container(content=txt(site_login or "Не указан", 15, WHITE if site_login else MUTED), expand=True),
+                        copy_button(site_login, "логин"),
+                    ], spacing=8,
+                ),
                 txt("АДРЕС САЙТА", 12, ACCENT, True),
                 clickable_url(site_url) if site_url else txt(
                     "Ссылка не указана", 13, MUTED
@@ -2824,6 +2884,8 @@ async def main(page: ft.Page):
 
     page.run_task(watchdog)
     page.run_task(tray_worker)
+    if sys.platform == "win32":
+        page.run_task(restore_from_shortcut)
     start_tray()
 
     # Give the desktop window one more chance to become visible after
@@ -2838,7 +2900,9 @@ async def main(page: ft.Page):
 
 if __name__ == "__main__":
     try:
-        claim_single_instance()
+        first_instance = claim_single_instance()
+        if not first_instance:
+            raise SystemExit(0)
     except RuntimeError as exc:
         print(exc)
         raise SystemExit(1)
