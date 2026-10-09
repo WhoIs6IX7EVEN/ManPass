@@ -104,4 +104,4 @@ python -m venv .venv
 
 ---
 
-**ManPass — Powered by Andrey Pesterev**
+**ManPass — Powered by 6IX7EVEN**
