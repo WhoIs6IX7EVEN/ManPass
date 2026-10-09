@@ -20,7 +20,7 @@ def fake(data):
 BASE = {"tag_name": "v3.7.0", "html_url": "https://github.com/WhoIs6IX7EVEN/ManPass/releases/tag/v3.7.0", "draft": False, "prerelease": False}
 
 def test_new_stable_release():
-    result = fetch_stable_update("3.6.1", fake(BASE))
+    result = fetch_stable_update("3.6.2", fake(BASE))
     assert result == {"version": "3.7.0", "url": BASE["html_url"]}
 
 def test_no_update():
@@ -28,15 +28,15 @@ def test_no_update():
     assert fetch_stable_update("3.8.0", fake(BASE)) is None
 
 def test_prerelease_ignored():
-    assert fetch_stable_update("3.6.1", fake({**BASE, "prerelease": True})) is None
+    assert fetch_stable_update("3.6.2", fake({**BASE, "prerelease": True})) is None
 
 def test_reject_malicious_link():
     with pytest.raises(ValueError):
-        fetch_stable_update("3.6.1", fake({**BASE, "html_url":"https://evil.example/run.exe"}))
+        fetch_stable_update("3.6.2", fake({**BASE, "html_url":"https://evil.example/run.exe"}))
 
 def test_reject_bad_versions():
     for version in ("v3.7.0-beta", "3.7", "3.7.0.1", "hello"):
         with pytest.raises(ValueError): parse_version(version)
 
 def test_reject_oversized_payload():
-    with pytest.raises(ValueError): fetch_stable_update("3.6.1", lambda req,timeout:Response(b"a"*65537))
+    with pytest.raises(ValueError): fetch_stable_update("3.6.2", lambda req,timeout:Response(b"a"*65537))

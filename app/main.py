@@ -110,7 +110,7 @@ def windows_idle_seconds():
 # =====================================================
 
 APP_NAME = "ManPass"
-APP_VERSION = "3.6.1"
+APP_VERSION = "3.6.2"
 
 APP_DIR = Path.home() / "PasswordVault"
 APP_DIR.mkdir(parents=True, exist_ok=True)
@@ -1316,6 +1316,9 @@ async def main(page: ft.Page):
         try:
             result = await asyncio.to_thread(fetch_stable_update, APP_VERSION)
             state["update"] = result
+            # Update sidebar as soon as a newer stable release is confirmed.
+            if state["key"] is not None and not state["dialogs"] and result:
+                render_app()
             if result and state["key"] is not None and not manual:
                 show_update_notification()
         except Exception as exc:
@@ -2833,6 +2836,22 @@ async def main(page: ft.Page):
                         "updates"
                     ),
                     ft.Container(expand=True),
+                    *([ft.Container(
+                        padding=ft.Padding.symmetric(horizontal=5, vertical=4),
+                        content=ft.TextButton(
+                            content=ft.Row([
+                                ft.Icon(ft.Icons.SYSTEM_UPDATE, size=17, color=ACCENT),
+                                ft.Column([
+                                    txt("Доступно обновление", 12, WHITE, True),
+                                    txt(f"ManPass {state['update']['version']}", 11, ACCENT),
+                                ], spacing=2, tight=True),
+                            ], spacing=8, tight=True),
+                            on_click=lambda e: switch("updates"),
+                            tooltip="Открыть раздел обновлений",
+                        ),
+                        bgcolor=CARD,
+                        border_radius=11,
+                    )] if state.get("update") else []),
                     ft.TextButton(
                         "Инструкция пользователя",
                         on_click=show_guide
