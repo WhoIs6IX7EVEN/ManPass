@@ -1,5 +1,5 @@
 #define MyAppName "ManPass"
-#define MyAppVersion "3.5.0"
+#define MyAppVersion "3.5.1"
 #define MyAppExe "ManPass.exe"
 [Setup]
 AppId={{67B33114-7DA1-43DB-A776-E020E71A6B2F}
@@ -15,6 +15,9 @@ Compression=lzma
 SolidCompression=yes
 PrivilegesRequired=lowest
 WizardStyle=modern
+LicenseFile=..\docs\LICENSE_AGREEMENT_RU.txt
+CloseApplications=yes
+RestartApplications=no
 UninstallDisplayIcon={app}\ManPass.exe
 DisableProgramGroupPage=yes
 ArchitecturesAllowed=x64

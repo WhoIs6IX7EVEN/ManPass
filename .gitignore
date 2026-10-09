@@ -25,4 +25,5 @@ manpass_config.json
 *.exe
 *.msi
 
+# Built distributables
 ManPass-Portable.zip

@@ -82,7 +82,7 @@ def windows_idle_seconds():
 # =====================================================
 
 APP_NAME = "ManPass"
-APP_VERSION = "3.5"
+APP_VERSION = "3.5.1"
 
 APP_DIR = Path.home() / "PasswordVault"
 APP_DIR.mkdir(parents=True, exist_ok=True)
@@ -978,6 +978,10 @@ async def main(page: ft.Page):
 
     page.window.title_bar_hidden = True
     page.window.icon = str(ICON_PATH)
+    # Always present the main window on a normal application launch.
+    # Hiding is reserved for an explicit close-to-tray action.
+    page.window.visible = True
+    page.window.minimized = False
 
     picker = ft.FilePicker()
 
@@ -2811,15 +2815,25 @@ async def main(page: ft.Page):
     # через элементы приложения.
     page.on_keyboard_event = activity
 
+    # Display the login window before starting the background tray thread.
+    # This avoids a start-up race observed in packaged Windows builds.
+    render_login()
+    page.window.visible = True
+    page.window.minimized = False
+    page.update()
+
     page.run_task(watchdog)
     page.run_task(tray_worker)
     start_tray()
 
-    # ================================================
-    # START
-    # ================================================
-
-    render_login()
+    # Give the desktop window one more chance to become visible after
+    # Flutter/Pystray initialization. This runs only during startup and
+    # does NOT override deliberate hiding later in the session.
+    await asyncio.sleep(0.35)
+    if not state["exiting"]:
+        page.window.visible = True
+        page.window.minimized = False
+        page.update()
 
 
 if __name__ == "__main__":
