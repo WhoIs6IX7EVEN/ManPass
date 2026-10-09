@@ -1,0 +1,4 @@
+-r requirements.txt
+flet-cli
+pyinstaller
+pytest

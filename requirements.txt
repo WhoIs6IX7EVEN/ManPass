@@ -1,0 +1,5 @@
+flet[desktop]
+pystray
+Pillow
+cryptography
+argon2-cffi

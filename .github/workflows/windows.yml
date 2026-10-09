@@ -1,0 +1,40 @@
+name: Windows Desktop Release
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Create virtual environment
+        run: py -3.12 -m venv .venv
+        shell: pwsh
+      - name: Test and build portable
+        run: .\scripts\build_windows.ps1
+        shell: pwsh
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+        shell: pwsh
+      - name: Build setup installer
+        run: .\scripts\build_installer.ps1
+        shell: pwsh
+      - name: Upload portable
+        uses: actions/upload-artifact@v4
+        with:
+          name: ManPass-Portable
+          path: ManPass-Portable.zip
+          if-no-files-found: error
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: ManPass-Setup
+          path: dist/installer/ManPass-Setup.exe
+          if-no-files-found: error

@@ -1,0 +1,28 @@
+# Python / IDE
+__pycache__/
+*.py[cod]
+.venv/
+.idea/
+.pytest_cache/
+build/
+dist/
+*.spec
+*.log
+# Sensitive user data (NEVER COMMIT)
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*backup*.zip
+vault*/
+backups/
+manpass_config.json
+**/PasswordVault/
+.env
+.env.*
+# Local build packages
+*.exe
+*.msi
+
+ManPass-Portable.zip
