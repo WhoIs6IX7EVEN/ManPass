@@ -106,11 +106,11 @@ def windows_idle_seconds():
 
 # =====================================================
 # MANPASS 3.1
-# Powered by Andrey Pesterev
+# Powered by 6IX7EVEN
 # =====================================================
 
 APP_NAME = "ManPass"
-APP_VERSION = "3.6.0"
+APP_VERSION = "3.6.1"
 
 APP_DIR = Path.home() / "PasswordVault"
 APP_DIR.mkdir(parents=True, exist_ok=True)
@@ -284,7 +284,7 @@ USER_GUIDE = """
 MANPASS — РУКОВОДСТВО ПОЛЬЗОВАТЕЛЯ
 
 Версия: 3.1
-Powered by Andrey Pesterev
+Powered by 6IX7EVEN
 
 ==================================================
 1. НАЗНАЧЕНИЕ ПРОГРАММЫ
@@ -453,7 +453,7 @@ ManPass является самостоятельным программным
 
 ==================================================
 
-Powered by Andrey Pesterev
+Powered by 6IX7EVEN
 """
 
 
@@ -1532,7 +1532,7 @@ async def main(page: ft.Page):
                 on_click=show_guide
             ),
             txt(
-                "Powered by Andrey Pesterev",
+                "Powered by 6IX7EVEN",
                 11,
                 MUTED
             )
@@ -2842,7 +2842,7 @@ async def main(page: ft.Page):
                         content=ft.Column([
                             txt("О программе", 12, WHITE, True),
                             txt(f"ManPass · версия {APP_VERSION}", 11, MUTED),
-                            txt("Powered by Andrey Pesterev", 10, MUTED),
+                            txt("Powered by 6IX7EVEN", 10, MUTED),
                         ], spacing=5, tight=True),
                     ),
                     btn(

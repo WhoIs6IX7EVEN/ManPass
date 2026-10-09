@@ -1,11 +1,11 @@
 #define MyAppName "ManPass"
-#define MyAppVersion "3.6.0"
+#define MyAppVersion "3.6.1"
 #define MyAppExe "ManPass.exe"
 [Setup]
 AppId={{67B33114-7DA1-43DB-A776-E020E71A6B2F}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-AppPublisher=Andrey Pesterev
+AppPublisher=6IX7EVEN
 DefaultDirName={localappdata}\Programs\ManPass
 DefaultGroupName=ManPass
 OutputDir=..\dist\installer
