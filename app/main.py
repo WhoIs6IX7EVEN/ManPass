@@ -11,12 +11,14 @@ import tempfile
 import threading
 import ctypes
 import atexit
+import webbrowser
 from pathlib import Path
 from datetime import datetime
 from collections import Counter
 from urllib.parse import urlparse
 
 import flet as ft
+from updater import RELEASES_URL, fetch_stable_update
 
 try:
     import pystray
@@ -108,7 +110,7 @@ def windows_idle_seconds():
 # =====================================================
 
 APP_NAME = "ManPass"
-APP_VERSION = "3.5.2"
+APP_VERSION = "3.6.0"
 
 APP_DIR = Path.home() / "PasswordVault"
 APP_DIR.mkdir(parents=True, exist_ok=True)
@@ -1020,7 +1022,11 @@ async def main(page: ft.Page):
         "last_activity": time.monotonic(),
         "busy": False,
         "dialogs": [],
-        "focus_search": False
+        "focus_search": False,
+        "update": None,
+        "update_error": None,
+        "update_checking": False,
+        "update_notified": False,
     }
 
     # The pystray thread only posts commands. All Flet actions run on the
@@ -1273,6 +1279,79 @@ async def main(page: ft.Page):
             actions=[ft.TextButton("Закрыть", on_click=lambda e: close_dialog())],
         ))
 
+    def open_official_release(e=None):
+        # URL is independently checked by updater.py when fetched.
+        result = state.get("update")
+        url = result["url"] if result else RELEASES_URL
+        webbrowser.open(url)
+
+    def show_update_notification():
+        result = state.get("update")
+        if not result or state["key"] is None or state["update_notified"]:
+            return
+        if state["dialogs"]:
+            return
+        state["update_notified"] = True
+        show_dialog(ft.AlertDialog(
+            modal=True,
+            title=txt("Доступно обновление ManPass", 19, bold=True),
+            content=ft.Container(width=390, content=ft.Column([
+                txt(f"Новая стабильная версия: {result['version']}", 15, bold=True),
+                txt(f"Установлена: {APP_VERSION}", 13, MUTED),
+                txt("Скачай установщик только с официальной страницы релиза GitHub. Текущая база данных не изменяется.", 13, MUTED),
+            ], spacing=12, tight=True)),
+            actions=[
+                ft.TextButton("Позже", on_click=lambda e: close_dialog()),
+                ft.TextButton("Открыть релиз", on_click=lambda e: (close_dialog(), open_official_release())),
+            ]
+        ))
+
+    async def check_updates(manual=False):
+        if state["update_checking"] or state["exiting"]:
+            return
+        state["update_checking"] = True
+        state["update_error"] = None
+        if manual and state["key"] is not None and state["section"] == "updates":
+            render_app()
+        try:
+            result = await asyncio.to_thread(fetch_stable_update, APP_VERSION)
+            state["update"] = result
+            if result and state["key"] is not None and not manual:
+                show_update_notification()
+        except Exception as exc:
+            # Network failure never prevents authentication or accessing the vault.
+            state["update_error"] = "Не удалось проверить обновления. Проверь подключение к интернету или доступность GitHub."
+        finally:
+            state["update_checking"] = False
+            if state["key"] is not None and state["section"] == "updates":
+                render_app()
+            if manual and state["key"] is not None and state["section"] != "updates":
+                info("Проверка обновлений", state["update_error"] or (f"Доступна версия {state['update']['version']}" if state["update"] else "Установлена последняя стабильная версия."))
+
+    def updates_page():
+        result = state["update"]
+        if state["update_checking"]:
+            status = "Проверяем GitHub Releases..."
+        elif state["update_error"]:
+            status = state["update_error"]
+        elif result:
+            status = f"Доступна новая стабильная версия: {result['version']}"
+        else:
+            status = "Новых стабильных версий не найдено (по последней проверке)."
+        return ft.Column([
+            txt("Обновления", 27, bold=True),
+            panel(ft.Column([
+                txt(f"Текущая версия: {APP_VERSION}", 17, bold=True),
+                txt("Канал: стабильный · Проверка при запуске включена", 13, MUTED),
+                txt(status, 14, MUTED),
+                ft.Row([
+                    btn("Проверить обновления", lambda e: page.run_task(check_updates, True), ft.Icons.REFRESH),
+                    btn("Официальные релизы", open_official_release, ft.Icons.OPEN_IN_NEW),
+                ], spacing=12, wrap=True),
+                txt("Обновления не устанавливаются автоматически. Мастер-пароль и содержимое базы не отправляются на GitHub.", 12, MUTED),
+            ], spacing=17)),
+        ], spacing=20, expand=True, scroll=ft.ScrollMode.AUTO)
+
     def title_bar():
         drag_area = ft.WindowDragArea(
             expand=True,
@@ -1406,6 +1485,7 @@ async def main(page: ft.Page):
 
                 activity()
                 render_app()
+                show_update_notification()
 
             except Exception as error:
                 info(
@@ -2747,6 +2827,11 @@ async def main(page: ft.Page):
                         ft.Icons.PERSON_OUTLINE,
                         "profile"
                     ),
+                    nav(
+                        "Обновления",
+                        ft.Icons.SYSTEM_UPDATE,
+                        "updates"
+                    ),
                     ft.Container(expand=True),
                     ft.TextButton(
                         "Инструкция пользователя",
@@ -2805,6 +2890,9 @@ async def main(page: ft.Page):
 
         elif section == "profile":
             current_page = profile_page()
+
+        elif section == "updates":
+            current_page = updates_page()
 
         else:
             current_page = analysis_page()
@@ -2883,6 +2971,7 @@ async def main(page: ft.Page):
     page.update()
 
     page.run_task(watchdog)
+    page.run_task(check_updates)
     page.run_task(tray_worker)
     if sys.platform == "win32":
         page.run_task(restore_from_shortcut)
